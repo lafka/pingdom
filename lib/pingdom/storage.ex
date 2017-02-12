@@ -44,7 +44,7 @@ defmodule Pingdom.Storage do
   end
   defp doflush([], rest, _), do: {:ok, rest}
   defp doflush([{timestamp, metric, value} = item | rest], failed, config) do
-    now = :erlang.system_time(:millisecond)
+    now = :erlang.system_time(:milli_seconds)
     diff  = now - :erlang.convert_time_unit(timestamp, :native, :milli_seconds)
 
     # old metrics are useless
