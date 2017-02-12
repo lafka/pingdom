@@ -40,7 +40,7 @@ defmodule Pingdom.Incidents do
   # make sure that starting with failed status should make new incidents if no
   # such exists
   def handle_cast({:update, component, status, _metric}, %{status: statuses} = state) do
-    case IO.inspect statuses[component] do
+    case statuses[component] do
       # new status
       nil ->
         newstate = refresh state
@@ -70,7 +70,7 @@ defmodule Pingdom.Incidents do
     [y, m, d, h, i, s] = String.split(date, ~r/[^0-9]/) |> Enum.map(&String.to_integer/1)
     epoch = :calendar.datetime_to_gregorian_seconds({ {y, m, d}, {h, i, s} }) - @gregsecs
 
-    :erlang.convert_time_unit(epoch, :second, :native)
+    :erlang.convert_time_unit(epoch, :seconds, :native)
   end
 
   defp refresh(%{status: statuses} = state) do

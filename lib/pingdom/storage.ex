@@ -45,7 +45,7 @@ defmodule Pingdom.Storage do
   defp doflush([], rest, _), do: {:ok, rest}
   defp doflush([{timestamp, metric, value} = item | rest], failed, config) do
     now = :erlang.system_time(:millisecond)
-    diff  = now - :erlang.convert_time_unit(timestamp, :native, :millisecond)
+    diff  = now - :erlang.convert_time_unit(timestamp, :native, :milli_seconds)
 
     # old metrics are useless
     if diff > config[:ttl] do
@@ -57,7 +57,7 @@ defmodule Pingdom.Storage do
         {"Content-Type", "application/json"},
         {"X-Cachet-Token", config[:cachet_token]}
       ]
-      ms = :erlang.convert_time_unit(timestamp, :native, :millisecond)
+      ms = :erlang.convert_time_unit(timestamp, :native, :milli_seconds)
       body = "{\"value\":\"#{value}\",\"timestamp\": \"#{ms}\"}"
 
       Logger.debug "storage: #{metric} -> #{point} -> #{value}"

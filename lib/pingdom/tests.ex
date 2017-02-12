@@ -91,13 +91,13 @@ defmodule Pingdom.Tests do
             {:ok, _} ->
               diff = :erlang.system_time() - starttime
               :ok = close module, sock
-              {:ok, :erlang.convert_time_unit(diff, :native, :millisecond)}
+              {:ok, :erlang.convert_time_unit(diff, :native, :milli_seconds)}
 
             _ ->
-              :ok
+              {:state, :degraded}
           end
 
-        {:error, reason} = err ->
+        {:error, _reason} = err ->
           err
       end
     end

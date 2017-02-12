@@ -13,7 +13,7 @@ defmodule Pingdom.Mixfile do
 
   def application do
     [extra_applications: [],
-     applications: [:httpoison, :logger],
+     applications: [:httpoison, :logger, :poison],
      mod: {Pingdom.Application, []}]
   end
 
