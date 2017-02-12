@@ -16,7 +16,7 @@ defmodule Pingdom.Storage do
   def flush, do: flush(@server)
   def flush(server), do: GenServer.cast(server, :flush)
 
-  def init() do
+  def init(_) do
     {:ok,
       %{
         queue: []
@@ -26,14 +26,15 @@ defmodule Pingdom.Storage do
   def handle_cast({:store, metric, value}, %{queue: queue} = state) do
     now = :erlang.system_time()
 
+    flush self()
+
     {:noreply, %{state | queue: [{now, metric, value} | queue]}}
   end
 
   # cachet only supports posting metrics one by one
-  def handle_cast(:flush, %{request: nil, queue: queue} = state) do
+  def handle_cast(:flush, %{queue: queue} = state) do
     {:ok, newqueue} = doflush queue
 
-    # don't run out of memory
     backlog = Application.get_env :pingdom, :backlog, 1000
     {:noreply, %{state | queue: Enum.slice(newqueue, 0, backlog)}}
   end
@@ -42,7 +43,7 @@ defmodule Pingdom.Storage do
     doflush(queue, [], Application.get_all_env(:pingdom))
   end
   defp doflush([], rest, _), do: {:ok, rest}
-  defp doflush([{timestamp, metric, value} = item | rest], failed, %{metrics: metrics, backend: backend} = config) do
+  defp doflush([{timestamp, metric, value} = item | rest], failed, config) do
     now = :erlang.system_time(:millisecond)
     diff  = now - :erlang.convert_time_unit(timestamp, :native, :millisecond)
 
@@ -50,16 +51,17 @@ defmodule Pingdom.Storage do
     if diff > config[:ttl] do
       doflush rest, failed, config
     else
-      {_test, point, _args} = metrics[metric]
+      {_test, point, _interval, _args} = config[:metrics][metric]
 
       headers = [
         {"Content-Type", "application/json"},
         {"X-Cachet-Token", config[:cachet_token]}
       ]
       ms = :erlang.convert_time_unit(timestamp, :native, :millisecond)
-      body = "{\"value\":'#{value},\"timestamp\": '#{ms}'}"
+      body = "{\"value\":\"#{value}\",\"timestamp\": \"#{ms}\"}"
 
-      case HTTPoison.post "#{backend}/v1/metrics/#{point}/points", body, headers do
+      Logger.debug "storage: #{metric} -> #{point} -> #{value}"
+      case HTTPoison.post "#{config[:backend]}/v1/metrics/#{point}/points", body, headers do
         {:ok, %{status_code: 200}} ->
           doflush rest, failed, config
 
@@ -73,10 +75,4 @@ defmodule Pingdom.Storage do
       end
     end
   end
-
-
-#iex> HTTPoison.post "http://httparrot.herokuapp.com/post", "{\"body\": \"test\"}", [{"Content-Type", "application/json"}]
-#		-H 'Content-Type: application/json' \
-#		-d '{"value": '$TIME',"timestamp": '$(date --utc +%s)'}' \
-#		-H 'X-Cachet-Token: 9Ib9MnjeR8WStYtQs0rU'
 end

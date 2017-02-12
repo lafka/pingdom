@@ -16,16 +16,18 @@ defmodule Pingdom.Tests do
   def init([name, {storage, test}, interval, args]) do
     {:ok, timer} = :timer.send_interval interval, self(), :test
 
-    Logger.warn "start"
     {:ok, %State{name: name, test: test, args: args, timer: timer, storage: storage}}
   end
 
   def handle_info(:test, %{name: name, args: args, test: test} = state) do
+    Logger.info "collection #{name} <- #{test}"
     case test.test args do
       :ok ->
+        Logger.debug "tests: #{name} <- #{test} -> (nil)"
         {:noreply, state}
 
       {:ok, val} ->
+        Logger.info "tests: #{name} <- #{test} -> #{val}"
         :ok = apply state.storage, [name, val]
         {:noreply, state}
     end
@@ -43,14 +45,41 @@ defmodule Pingdom.Tests do
   end
 
   defmodule HTTP_Ping do
-    def test(_arg) do
-      {:ok, 0}
+    def test(url) do
+      starttime = :erlang.system_time()
+
+      case HTTPoison.get! url do
+        %{status_code: 200} ->
+          diff = :erlang.system_time() - starttime
+          {:ok, :erlang.convert_time_unit(diff, :native, :millisecond)}
+
+        _ ->
+          :ok
+      end
     end
   end
 
   defmodule TCP_RTT do
-    def test({module, _arg}) when module in [:gen_tcp, :ssl] do
-      {:ok, 0}
+    def test({module, host, port}) when module in [:gen_tcp, :ssl] do
+      starttime = :erlang.system_time()
+      case module.connect '#{host}', port, [:binary, active: false] do
+        {:ok, sock} ->
+          case module.recv sock, 0 do
+            {:ok, _} ->
+              diff = :erlang.system_time() - starttime
+              :ok = close module, sock
+              {:ok, :erlang.convert_time_unit(diff, :native, :millisecond)}
+
+            _ ->
+              :ok
+          end
+
+        _ ->
+          :ok
+      end
     end
+
+    defp close(:ssl, sock), do: :ssl.close(sock, 1000)
+    defp close(:gen_tcp, sock), do: :gen_tcp.close(sock)
   end
 end
