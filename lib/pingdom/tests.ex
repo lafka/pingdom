@@ -37,6 +37,13 @@ defmodule Pingdom.Tests do
         :ok = apply state.storage, [name, val]
         {:noreply, state}
 
+      {:state, s} ->
+        Logger.error "tests: #{name} <- STATE: #{s}"
+        if component do
+          Pingdom.Incidents.update component, s, nil
+        end
+        {:noreply, state}
+
       {:error, err} when err in [:econnrefused, :nxdomain] ->
         Logger.error "tests: #{name} <- ERROR: #{err}"
         if component do
@@ -71,13 +78,20 @@ defmodule Pingdom.Tests do
     def test(url) do
       starttime = :erlang.system_time()
 
-      case HTTPoison.get! url do
-        %{status_code: 200} ->
-          diff = :erlang.system_time() - starttime
-          {:ok, :erlang.convert_time_unit(diff, :native, :millisecond)}
+      try do
+        case HTTPoison.get url do
+          {:ok, %{status_code: 200}} ->
+            diff = :erlang.system_time() - starttime
+            {:ok, :erlang.convert_time_unit(diff, :native, :milli_seconds)}
 
-        _ ->
-          :ok
+          {:ok, %{status_code: _}} ->
+            {:state, :degraded}
+
+          {:error, _} = err ->
+            err
+        end
+      rescue _e ->
+        {:error, :exception}
       end
     end
   end
