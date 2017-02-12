@@ -21,6 +21,7 @@ defmodule Pingdom.Tests do
 
   def handle_info(:test, %{name: name, args: args, test: test} = state) do
     Logger.info "collection #{name} <- #{test}"
+    component = Application.get_env(:pingdom, :components, %{})[name]
     case test.test args do
       :ok ->
         Logger.debug "tests: #{name} <- #{test} -> (nil)"
@@ -28,8 +29,30 @@ defmodule Pingdom.Tests do
 
       {:ok, val} ->
         Logger.info "tests: #{name} <- #{test} -> #{val}"
+
+        if component do
+          Pingdom.Incidents.update component, :ok, val
+        end
+
         :ok = apply state.storage, [name, val]
         {:noreply, state}
+
+      {:error, err} when err in [:econnrefused, :nxdomain] ->
+        Logger.error "tests: #{name} <- ERROR: #{err}"
+        if component do
+          Pingdom.Incidents.update component, :failed, nil
+        end
+        {:noreply, state}
+
+      {:error, err} ->
+        Logger.error "tests: #{name} <- ERROR: #{err}"
+
+        if component do
+          Pingdom.Incidents.update component, :degraded, nil
+        end
+
+        {:noreply, state}
+
     end
   end
 
@@ -74,8 +97,8 @@ defmodule Pingdom.Tests do
               :ok
           end
 
-        _ ->
-          :ok
+        {:error, reason} = err ->
+          err
       end
     end
 

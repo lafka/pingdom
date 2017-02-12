@@ -12,7 +12,8 @@ defmodule Pingdom.Application do
     end
 
     children = [
-      {:storage, {Pingdom.Storage, :start_link, []}, :permanent, 5000, :worker, [Pingdom.Storage]}
+      {:storage, {Pingdom.Storage, :start_link, []}, :permanent, 5000, :worker, [Pingdom.Storage]},
+      {:incidents, {Pingdom.Incidents, :start_link, []}, :permanent, 5000, :worker, [Pingdom.Incidents]}
       | workers
     ]
 
